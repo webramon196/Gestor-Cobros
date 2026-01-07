@@ -3,30 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Gestión de Cobros</title>
-    <!-- Tailwind CSS para diseño profesional -->
+    <title>Gestión de Cobros Profesional</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React y Babel -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Iconos Lucide -->
-    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
-<body class="bg-gray-50 text-gray-900">
+<body class="bg-gray-100 text-slate-900 min-h-screen">
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useMemo, useEffect } = React;
 
+        // Componentes de Iconos simples en SVG
+        const TrashIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+        );
+
+        const DownloadIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        );
+
         const App = () => {
-            // Cargar datos de localStorage
             const [registros, setRegistros] = useState(() => {
-                const guardados = localStorage.getItem('cobros_data');
-                return guardados ? JSON.parse(guardados) : [];
+                const saved = localStorage.getItem('app_cobros_v2');
+                return saved ? JSON.parse(saved) : [];
             });
 
-            const [formulario, setFormulario] = useState({
+            const [nuevo, setNuevo] = useState({
                 fabrica: '',
                 cliente: '',
                 fecha: new Date().toISOString().split('T')[0],
@@ -34,203 +40,200 @@
                 estado: 'Pagado'
             });
 
-            const [confirmarBorrado, setConfirmarBorrado] = useState(false);
-
-            // Guardar en localStorage cada vez que cambien los registros
             useEffect(() => {
-                localStorage.setItem('cobros_data', JSON.stringify(registros));
-                if (window.lucide) window.lucide.createIcons();
+                localStorage.setItem('app_cobros_v2', JSON.stringify(registros));
             }, [registros]);
 
-            // LÓGICA DE CÁLCULO SOLICITADA
-            const estadisticas = useMemo(() => {
+            // LÓGICA DE BALANCE: Pagado suma, Abono resta, Pendiente NO suma.
+            const stats = useMemo(() => {
                 return registros.reduce((acc, curr) => {
-                    const monto = parseFloat(curr.monto) || 0;
-                    
+                    const val = parseFloat(curr.monto) || 0;
                     if (curr.estado === 'Pagado') {
-                        acc.balanceReal += monto;
-                        acc.totalPagado += monto;
+                        acc.balanceReal += val;
+                        acc.pagado += val;
                     } else if (curr.estado === 'Abono') {
-                        acc.balanceReal -= monto;
-                        acc.totalAbonos += monto;
+                        acc.balanceReal -= val;
+                        acc.abonos += val;
                     } else if (curr.estado === 'Pendiente de cobro') {
-                        acc.totalPendiente += monto;
-                        // NO afecta al balanceReal
+                        acc.pendiente += val;
                     }
-                    
                     return acc;
-                }, { balanceReal: 0, totalPagado: 0, totalPendiente: 0, totalAbonos: 0 });
+                }, { balanceReal: 0, pagado: 0, pendiente: 0, abonos: 0 });
             }, [registros]);
 
-            const manejarAgregar = (e) => {
+            const agregar = (e) => {
                 e.preventDefault();
-                const nuevoRegistro = {
-                    ...formulario,
-                    id: Date.now(),
-                    monto: parseFloat(formulario.monto)
-                };
-                setRegistros([nuevoRegistro, ...registros]);
-                setFormulario({ ...formulario, monto: '', fecha: new Date().toISOString().split('T')[0] });
+                const item = { ...nuevo, id: Date.now(), monto: parseFloat(nuevo.monto) };
+                setRegistros([item, ...registros]);
+                setNuevo({ ...nuevo, monto: '', fecha: new Date().toISOString().split('T')[0] });
             };
 
-            const eliminarRegistro = (id) => {
-                setRegistros(registros.filter(r => r.id !== id));
-            };
+            const borrar = (id) => setRegistros(registros.filter(r => r.id !== id));
 
+            // Función para exportar a PDF
             const exportarPDF = async () => {
-                const cargarScript = (src) => new Promise(res => {
-                    const s = document.createElement('script'); s.src = src; s.onload = res; document.head.appendChild(s);
+                const loadScript = (src) => new Promise((resolve) => {
+                    const script = document.createElement('script');
+                    script.src = src;
+                    script.onload = resolve;
+                    document.head.appendChild(script);
                 });
-                
+
                 if (!window.jspdf) {
-                    await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-                    await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js');
+                    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+                    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js');
                 }
-                
+
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF();
-                
+
+                // Título del PDF
                 doc.setFontSize(18);
                 doc.setTextColor(0, 128, 128);
-                doc.text('REPORTE DE CAJA Y COBROS', 14, 20);
+                doc.text('REPORTE DE COBROS Y CAJA', 14, 20);
                 
-                const filas = registros.map(r => [
-                    r.fabrica, 
-                    r.cliente, 
-                    r.fecha, 
-                    r.estado, 
+                doc.setFontSize(10);
+                doc.setTextColor(100);
+                doc.text(`Fecha de generación: ${new Date().toLocaleString()}`, 14, 28);
+
+                // Datos de la tabla
+                const tableRows = registros.map(r => [
+                    r.fabrica.toUpperCase(),
+                    r.cliente,
+                    r.fecha,
+                    r.estado,
                     `${r.estado === 'Abono' ? '-' : ''}${r.monto.toFixed(2)} €`
                 ]);
 
-                filas.push([
+                // Añadir fila de totales al final
+                tableRows.push([
                     { content: 'BALANCE TOTAL REAL (CAJA):', colSpan: 4, styles: { halign: 'right', fontStyle: 'bold', fillColor: [240, 240, 240] } },
-                    { content: `${estadisticas.balanceReal.toFixed(2)} €`, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }
+                    { content: `${stats.balanceReal.toFixed(2)} €`, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }
                 ]);
 
                 doc.autoTable({
-                    head: [['Fábrica', 'Cliente', 'Fecha', 'Estado', 'Importe']],
-                    body: filas,
-                    startY: 30,
-                    headStyles: { fillColor: [0, 128, 128] }
+                    head: [['FÁBRICA', 'CLIENTE', 'FECHA', 'ESTADO', 'IMPORTE']],
+                    body: tableRows,
+                    startY: 35,
+                    headStyles: { fillColor: [0, 128, 128] },
+                    alternateRowStyles: { fillColor: [245, 250, 250] },
                 });
-                
-                doc.save(`Balance_Cobros_${new Date().toLocaleDateString()}.pdf`);
+
+                doc.save(`Reporte_Cobros_${new Date().toISOString().split('T')[0]}.pdf`);
             };
 
             return (
-                <div className="min-h-screen p-4 md:p-8">
-                    <div className="max-w-6xl mx-auto">
-                        {/* Cabecera */}
-                        <div className="bg-white rounded-2xl shadow-sm border-l-8 border-teal-600 p-6 mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
-                            <div>
-                                <h1 className="text-2xl font-black text-teal-800">Mi Cartera de Cobros</h1>
-                                <p className="text-gray-500 text-sm italic">Pendientes no computan en el balance real</p>
-                            </div>
-                            <div className="flex gap-2">
-                                <button 
-                                    onClick={() => {
-                                        if(confirmarBorrado) { setRegistros([]); setConfirmarBorrado(false); }
-                                        else { setConfirmarBorrado(true); setTimeout(() => setConfirmarBorrado(false), 3000); }
-                                    }}
-                                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${confirmarBorrado ? 'bg-red-600 text-white animate-pulse' : 'bg-red-50 text-red-600'}`}
-                                >
-                                    {confirmarBorrado ? '¿Confirmar?' : 'Limpiar Datos'}
-                                </button>
-                                <button onClick={exportarPDF} className="bg-teal-600 text-white px-6 py-2 rounded-xl font-bold shadow-lg hover:bg-teal-700 transition-all">
-                                    Generar PDF
-                                </button>
-                            </div>
+                <div className="max-w-6xl mx-auto p-4 md:p-8">
+                    <header className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-teal-600 mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div>
+                            <h1 className="text-2xl font-black text-teal-800">Caja y Cobros</h1>
+                            <p className="text-gray-400 text-xs font-bold uppercase tracking-wider italic">Los pendientes no afectan al balance real</p>
+                        </div>
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={exportarPDF}
+                                className="flex items-center bg-teal-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-teal-700 transition-all shadow-lg shadow-teal-100 active:scale-95"
+                            >
+                                <DownloadIcon />
+                                EXPORTAR PDF
+                            </button>
+                            <button 
+                                onClick={() => { if(confirm("¿Borrar todos los datos?")) setRegistros([]); }}
+                                className="text-red-500 bg-red-50 px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-red-100 transition-colors"
+                            >
+                                Limpiar Datos
+                            </button>
+                        </div>
+                    </header>
+
+                    {/* Dashboard */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                        <div className="bg-white p-5 rounded-xl shadow-sm border-b-4 border-teal-600 transition-transform hover:scale-[1.02]">
+                            <span className="text-[10px] font-black text-gray-400 uppercase">Balance Real</span>
+                            <div className="text-2xl font-black text-teal-700">{stats.balanceReal.toFixed(2)}€</div>
+                        </div>
+                        <div className="bg-white p-5 rounded-xl shadow-sm border-b-4 border-emerald-500 transition-transform hover:scale-[1.02]">
+                            <span className="text-[10px] font-black text-gray-400 uppercase">Pagado</span>
+                            <div className="text-2xl font-black text-emerald-600">{stats.pagado.toFixed(2)}€</div>
+                        </div>
+                        <div className="bg-white p-5 rounded-xl shadow-sm border-b-4 border-orange-400 transition-transform hover:scale-[1.02]">
+                            <span className="text-[10px] font-black text-gray-400 uppercase">Pendiente</span>
+                            <div className="text-2xl font-black text-orange-500">{stats.pendiente.toFixed(2)}€</div>
+                        </div>
+                        <div className="bg-white p-5 rounded-xl shadow-sm border-b-4 border-red-500 transition-transform hover:scale-[1.02]">
+                            <span className="text-[10px] font-black text-gray-400 uppercase">Abonos</span>
+                            <div className="text-2xl font-black text-red-600">{stats.abonos.toFixed(2)}€</div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        {/* Formulario */}
+                        <div className="lg:col-span-4">
+                            <form onSubmit={agregar} className="bg-white p-6 rounded-2xl shadow-sm space-y-4 border border-gray-100 sticky top-6">
+                                <h2 className="text-sm font-black text-teal-700 uppercase border-b pb-2 mb-4">Añadir Operación</h2>
+                                <input type="text" placeholder="Fábrica" className="w-full p-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20" required value={nuevo.fabrica} onChange={e => setNuevo({...nuevo, fabrica: e.target.value})} />
+                                <input type="text" placeholder="Cliente" className="w-full p-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20" required value={nuevo.cliente} onChange={e => setNuevo({...nuevo, cliente: e.target.value})} />
+                                <select className="w-full p-3 bg-gray-50 border rounded-xl font-bold outline-none" value={nuevo.estado} onChange={e => setNuevo({...nuevo, estado: e.target.value})}>
+                                    <option value="Pagado">✅ Pagado</option>
+                                    <option value="Pendiente de cobro">⏳ Pendiente</option>
+                                    <option value="Abono">➖ Abono (Resta)</option>
+                                </select>
+                                <input type="date" className="w-full p-3 bg-gray-50 border rounded-xl" required value={nuevo.fecha} onChange={e => setNuevo({...nuevo, fecha: e.target.value})} />
+                                <input type="number" step="0.01" placeholder="Importe €" className="w-full p-3 bg-gray-50 border rounded-xl font-black text-lg" required value={nuevo.monto} onChange={e => setNuevo({...nuevo, monto: e.target.value})} />
+                                <button className="w-full bg-teal-600 hover:bg-teal-700 text-white py-4 rounded-xl font-black shadow-lg shadow-teal-100 transition-transform active:scale-95 uppercase tracking-wider">Guardar Registro</button>
+                            </form>
                         </div>
 
-                        {/* Tarjetas de Resumen */}
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                            <div className="bg-white p-5 rounded-2xl shadow-sm border-b-4 border-teal-600">
-                                <span className="text-[10px] uppercase font-black text-gray-400">Balance Real</span>
-                                <div className="text-2xl font-black text-teal-700">{estadisticas.balanceReal.toFixed(2)}€</div>
-                            </div>
-                            <div className="bg-white p-5 rounded-2xl shadow-sm border-b-4 border-emerald-500">
-                                <span className="text-[10px] uppercase font-black text-gray-400">Pagados</span>
-                                <div className="text-2xl font-black text-emerald-600">{estadisticas.totalPagado.toFixed(2)}€</div>
-                            </div>
-                            <div className="bg-white p-5 rounded-2xl shadow-sm border-b-4 border-orange-400">
-                                <span className="text-[10px] uppercase font-black text-gray-400">Pendientes</span>
-                                <div className="text-2xl font-black text-orange-500">{estadisticas.totalPendiente.toFixed(2)}€</div>
-                            </div>
-                            <div className="bg-white p-5 rounded-2xl shadow-sm border-b-4 border-red-500">
-                                <span className="text-[10px] uppercase font-black text-gray-400">Abonos</span>
-                                <div className="text-2xl font-black text-red-600">{estadisticas.totalAbonos.toFixed(2)}€</div>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                            {/* Formulario */}
-                            <div className="lg:col-span-4">
-                                <form onSubmit={manejarAgregar} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4 sticky top-6">
-                                    <h2 className="font-bold text-gray-700 mb-4 border-b pb-2 uppercase text-xs tracking-widest">Nuevo Registro</h2>
-                                    <input type="text" placeholder="Fábrica" className="w-full p-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20" required value={formulario.fabrica} onChange={e => setFormulario({...formulario, fabrica: e.target.value})} />
-                                    <input type="text" placeholder="Cliente" className="w-full p-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20" required value={formulario.cliente} onChange={e => setFormulario({...formulario, cliente: e.target.value})} />
-                                    <select className="w-full p-3 bg-gray-50 border rounded-xl font-bold outline-none" value={formulario.estado} onChange={e => setFormulario({...formulario, estado: e.target.value})}>
-                                        <option value="Pagado">✅ Pagado</option>
-                                        <option value="Pendiente de cobro">⏳ Pendiente</option>
-                                        <option value="Abono">➖ Abono (Resta)</option>
-                                    </select>
-                                    <input type="date" className="w-full p-3 bg-gray-50 border rounded-xl outline-none" required value={formulario.fecha} onChange={e => setFormulario({...formulario, fecha: e.target.value})} />
-                                    <input type="number" step="0.01" placeholder="Importe €" className="w-full p-3 bg-gray-50 border rounded-xl outline-none font-bold text-lg" required value={formulario.monto} onChange={e => setFormulario({...formulario, monto: e.target.value})} />
-                                    <button className="w-full bg-teal-600 hover:bg-teal-700 text-white py-4 rounded-xl font-black shadow-lg shadow-teal-100 transition-all active:scale-95">GUARDAR REGISTRO</button>
-                                </form>
-                            </div>
-
-                            {/* Tabla de registros */}
-                            <div className="lg:col-span-8 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-sm">
-                                        <thead>
-                                            <tr className="bg-gray-50 border-b border-gray-100">
-                                                <th className="p-4 text-left text-gray-400 font-black uppercase text-[10px]">Detalle</th>
-                                                <th className="p-4 text-left text-gray-400 font-black uppercase text-[10px]">Estado</th>
-                                                <th className="p-4 text-right text-gray-400 font-black uppercase text-[10px]">Monto</th>
-                                                <th className="p-4"></th>
+                        {/* Listado */}
+                        <div className="lg:col-span-8 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-gray-50 border-b">
+                                        <tr>
+                                            <th className="p-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Detalle</th>
+                                            <th className="p-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Estado</th>
+                                            <th className="p-4 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Monto</th>
+                                            <th className="p-4"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {registros.map(r => (
+                                            <tr key={r.id} className="hover:bg-gray-50/50 transition-colors">
+                                                <td className="p-4">
+                                                    <div className="font-bold text-gray-800 text-xs uppercase tracking-tight">{r.fabrica}</div>
+                                                    <div className="text-[10px] text-gray-400 uppercase font-medium">{r.cliente} • {r.fecha}</div>
+                                                </td>
+                                                <td className="p-4">
+                                                    <span className={`text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-tighter ${r.estado === 'Pagado' ? 'bg-emerald-100 text-emerald-700' : r.estado === 'Abono' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                        {r.estado}
+                                                    </span>
+                                                </td>
+                                                <td className={`p-4 text-right font-black ${r.estado === 'Abono' ? 'text-red-600' : r.estado === 'Pendiente de cobro' ? 'text-gray-300' : 'text-slate-900'}`}>
+                                                    {r.estado === 'Abono' ? '-' : ''}{r.monto.toFixed(2)}€
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <button onClick={() => borrar(r.id)} className="text-gray-300 hover:text-red-500 p-2 transition-colors">
+                                                        <TrashIcon />
+                                                    </button>
+                                                </td>
                                             </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-50">
-                                            {registros.map(r => (
-                                                <tr key={r.id} className={`hover:bg-gray-50/80 transition-colors ${r.estado === 'Abono' ? 'bg-red-50/30' : ''}`}>
-                                                    <td className="p-4">
-                                                        <div className="font-bold text-gray-800 uppercase tracking-tight">{r.fabrica}</div>
-                                                        <div className="text-[10px] text-gray-400 font-medium">{r.cliente} | {r.fecha}</div>
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-tighter ${r.estado === 'Pagado' ? 'bg-emerald-100 text-emerald-700' : r.estado === 'Abono' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
-                                                            {r.estado}
-                                                        </span>
-                                                    </td>
-                                                    <td className={`p-4 text-right font-black text-base ${r.estado === 'Abono' ? 'text-red-600' : r.estado === 'Pendiente de cobro' ? 'text-gray-300 italic' : 'text-gray-900'}`}>
-                                                        {r.estado === 'Abono' ? '-' : ''}{r.monto.toFixed(2)}€
-                                                    </td>
-                                                    <td className="p-4 text-center">
-                                                        <button onClick={() => eliminarRegistro(r.id)} className="text-gray-300 hover:text-red-500 transition-colors">
-                                                            <i data-lucide="trash-2" className="w-4 h-4"></i>
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                            {registros.length === 0 && (
-                                                <tr>
-                                                    <td colSpan="4" className="p-20 text-center text-gray-300 italic font-medium">No hay registros guardados</td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                        {registros.length > 0 && (
-                                            <tfoot>
-                                                <tr className="bg-gray-50 border-t-2 border-gray-200">
-                                                    <td colSpan="2" className="p-6 text-right font-black text-xs uppercase text-gray-400">Balance Real Neto:</td>
-                                                    <td className="p-6 text-right text-2xl font-black text-teal-700">{estadisticas.balanceReal.toFixed(2)}€</td>
-                                                    <td></td>
-                                                </tr>
-                                            </tfoot>
+                                        ))}
+                                        {registros.length === 0 && (
+                                            <tr>
+                                                <td colSpan="4" className="p-16 text-center text-gray-300 italic font-medium">No hay registros en el historial</td>
+                                            </tr>
                                         )}
-                                    </table>
-                                </div>
+                                    </tbody>
+                                    {registros.length > 0 && (
+                                        <tfoot>
+                                            <tr className="bg-teal-50/30 border-t-2 border-teal-100">
+                                                <td colSpan="2" className="p-5 text-right text-[10px] font-black uppercase text-teal-600 tracking-widest">Balance Neto Real:</td>
+                                                <td className="p-5 text-right text-2xl font-black text-teal-700">{stats.balanceReal.toFixed(2)}€</td>
+                                                <td></td>
+                                            </tr>
+                                        </tfoot>
+                                    )}
+                                </table>
                             </div>
                         </div>
                     </div>
